@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "nombre": "Ana García",
+    "edad": 28,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "Laureles",
+      "codigo_postal": "050034"
+    }
+  },
+  {
+    "id": 2,
+    "nombre": "Carlos Ruiz",
+    "edad": 35,
+    "ciudad": "Bogotá",
+    "direccion": {
+      "barrio": "Chapinero",
+      "codigo_postal": "110311"
+    }
+  },
+  {
+    "id": 3,
+    "nombre": "María López",
+    "edad": 17,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "Belén",
+      "codigo_postal": "050031"
+    }
+  },
+  {
+    "id": 4,
+    "nombre": "Pedro Soto",
+    "edad": 42,
+    "ciudad": "Cali",
+    "direccion": {
+      "barrio": "Granada",
+      "codigo_postal": "760042"
+    }
+  },
+  {
+    "id": 5,
+    "nombre": "Lucía Herrera",
+    "edad": 22,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "Laureles",
+      "codigo_postal": "050034"
+    }
+  },
+  {
+    "id": 6,
+    "nombre": "Roberto Díaz",
+    "edad": 31,
+    "ciudad": "Bogotá",
+    "direccion": {
+      "barrio": "Usaquén",
+      "codigo_postal": "110111"
+    }
+  },
+  {
+    "id": 7,
+    "nombre": "Isabel Mora",
+    "edad": 25,
+    "ciudad": "Cali",
+    "direccion": {
+      "barrio": "El Poblado",
+      "codigo_postal": "760045"
+    }
+  },
+  {
+    "id": 8,
+    "nombre": "Tomás Vargas",
+    "edad": 19,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "Robledo",
+      "codigo_postal": "050036"
+    }
+  }
+]
