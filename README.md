@@ -1,4 +1,4 @@
-# Mini Motor Documental — Inspirado en MongoDB
+# Práctica Árboles
 
 Implementación de un motor documental usando **árboles** y **listas enlazadas** propias.
 No se usan listas de Python para la colección ni para los hijos de los nodos.
