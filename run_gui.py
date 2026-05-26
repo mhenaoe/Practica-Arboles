@@ -1,4 +1,4 @@
-"""Lanzador de la interfaz gráfica del Motor Documental."""
+"""Lanzador de la interfaz gráfica de DocuTree."""
 from gui.app import main
 
 if __name__ == "__main__":

@@ -78,5 +78,75 @@
       "barrio": "Robledo",
       "codigo_postal": "050036"
     }
+  },
+  {
+    "id": 9,
+    "nombre": "Valentina Castro",
+    "edad": 33,
+    "ciudad": "Bogotá",
+    "direccion": {
+      "barrio": "La Candelaria",
+      "codigo_postal": "110411"
+    }
+  },
+  {
+    "id": 10,
+    "nombre": "Andrés Jiménez",
+    "edad": 27,
+    "ciudad": "Barranquilla",
+    "direccion": {
+      "barrio": "El Prado",
+      "codigo_postal": "080020"
+    }
+  },
+  {
+    "id": 11,
+    "nombre": "Camila Torres",
+    "edad": 21,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "El Poblado",
+      "codigo_postal": "050021"
+    }
+  },
+  {
+    "id": 12,
+    "nombre": "Felipe Martínez",
+    "edad": 38,
+    "ciudad": "Cali",
+    "direccion": {
+      "barrio": "San Antonio",
+      "codigo_postal": "760001"
+    }
+  },
+  {
+    "id": 13,
+    "nombre": "Daniela Reyes",
+    "edad": 24,
+    "ciudad": "Bogotá",
+    "direccion": {
+      "barrio": "Teusaquillo",
+      "codigo_postal": "110231"
+    }
+  },
+  {
+    "id": 14,
+    "nombre": "Santiago Gómez",
+    "edad": 45,
+    "ciudad": "Medellín",
+    "direccion": {
+      "barrio": "Envigado",
+      "codigo_postal": "055420"
+    }
+  },
+  {
+    "id": 15,
+    "nombre": "Laura Peña",
+    "edad": 29,
+    "ciudad": "Barranquilla",
+    "direccion": {
+      "barrio": "Riomar",
+      "codigo_postal": "080010"
+    }
   }
 ]

@@ -143,7 +143,7 @@ def prueba_14_conversion_arbol_json(col: ColeccionDocumental) -> None:
 
 def main() -> None:
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║    PRUEBAS — Mini Motor Documental (MongoDB-like)       ║")
+    print("║         PRUEBAS — DocuTree (MongoDB-like)               ║")
     print("╚══════════════════════════════════════════════════════════╝")
 
     col = cargar_coleccion()

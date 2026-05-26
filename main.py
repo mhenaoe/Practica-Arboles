@@ -15,7 +15,7 @@ from src.arbol import ArbolDocumental
 
 def main() -> None:
     print("╔══════════════════════════════════════════════════════╗")
-    print("║   Mini Motor Documental — Inspirado en MongoDB      ║")
+    print("║        DocuTree — Inspirado en MongoDB              ║")
     print("║   Estructuras: Árboles + Listas Enlazadas           ║")
     print("╚══════════════════════════════════════════════════════╝\n")
 

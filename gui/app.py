@@ -1,9 +1,10 @@
 """
-app.py — Interfaz gráfica del Motor Documental. Tema claro estilo DataTree.
+app.py — Interfaz gráfica de DocuTree. Tema claro estilo DataTree.
 """
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import tkinter as tk
@@ -95,10 +96,10 @@ class F:
 
 
 class RoundedButton(tk.Canvas):
-    """Boton con forma de pildora (bordes totalmente redondeados)."""
+    """Boton con esquinas redondeadas (rounded rectangle, radio=7px)."""
 
     def __init__(self, parent, text: str, bg: str, fg: str, command,
-                 font=None, padx: int = 18, pady: int = 8,
+                 font=None, padx: int = 16, pady: int = 8,
                  border: str | None = None, **kw):
         self._text   = text
         self._bg     = bg
@@ -123,8 +124,8 @@ class RoundedButton(tk.Canvas):
         super().__init__(parent, width=self._W, height=self._H,
             highlightthickness=0, bd=0, bg=cbg, **kw)
 
-        self._hover = self._shift(bg, -10)
-        self._press = self._shift(bg, -22)
+        self._hover = self._shift(bg, -12)
+        self._press = self._shift(bg, -26)
         self._paint(self._bg)
 
         self.bind("<Enter>",           lambda _: self._paint(self._hover))
@@ -139,26 +140,32 @@ class RoundedButton(tk.Canvas):
         b = max(0, min(255, int(color[5:7], 16) + delta))
         return f"#{r:02x}{g:02x}{b:02x}"
 
+    def _rounded_pts(self, radius: int = 7) -> list:
+        m = 0.5
+        x0, y0 = m, m
+        x1, y1 = self._W - m, self._H - m
+        r = min(radius, (x1 - x0) / 2, (y1 - y0) / 2)
+        steps = 10
+        pts: list[float] = []
+        for cx, cy, a0 in [
+            (x1 - r, y0 + r, -90),
+            (x1 - r, y1 - r,   0),
+            (x0 + r, y1 - r,  90),
+            (x0 + r, y0 + r, 180),
+        ]:
+            for i in range(steps + 1):
+                a = math.radians(a0 + 90 * i / steps)
+                pts.extend([cx + r * math.cos(a), cy + r * math.sin(a)])
+        return pts
+
     def _paint(self, bg: str) -> None:
         self.delete("all")
-        W, H = self._W, self._H
-        r = H // 2          # radio = mitad alto → pildora perfecta
-
-        for ax, ay, start in [(0, 0, 90), (W-2*r, 0, 0),
-                               (0, H-2*r, 180), (W-2*r, H-2*r, 270)]:
-            self.create_arc(ax, ay, ax+2*r, ay+2*r,
-                start=start, extent=90, fill=bg, outline="")
-        self.create_rectangle(r, 0, W-r, H, fill=bg, outline="")
-        self.create_rectangle(0, r, W, H-r, fill=bg, outline="")
-
+        pts = self._rounded_pts()
+        self.create_polygon(pts, fill=bg, outline="")
         if self._border:
-            pts = [r, 0, W-r, 0, W, r, W, H-r,
-                   W-r, H, r, H, 0, H-r, 0, r]
-            self.create_polygon(pts, fill="", outline=self._border,
-                width=1, smooth=True)
-
-        self.create_text(W // 2, H // 2, text=self._text,
-            fill=self._fg, font=self._font)
+            self.create_polygon(pts, fill="", outline=self._border, width=1.5)
+        self.create_text(self._W // 2, self._H // 2,
+            text=self._text, fill=self._fg, font=self._font)
 
     def _on_press(self, _=None) -> None:
         self._paint(self._press)
@@ -166,13 +173,13 @@ class RoundedButton(tk.Canvas):
             self.after(80, self._cmd)
 
 
-class MotorGUI:
+class DocuTreeGUI:
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         F.setup()
 
-        self.root.title("Motor Documental  ·  Mini MongoDB")
+        self.root.title("DocuTree  ·  Mini MongoDB")
         self.root.configure(bg=C["sidebar"])
         self.root.geometry("1200x700")
         self.root.minsize(980, 620)
@@ -234,15 +241,15 @@ class MotorGUI:
         logo.pack(fill=tk.X)
         tk.Frame(self.sidebar, bg=C["border2"], height=1).pack(fill=tk.X)
 
-        icon_box = tk.Frame(logo, bg=C["accent"], width=32, height=32)
+        icon_box = tk.Frame(logo, bg=C["accent"], width=34, height=34)
         icon_box.pack(side=tk.LEFT)
         icon_box.pack_propagate(False)
-        tk.Label(icon_box, text="MD", bg=C["accent"], fg="#fff",
+        tk.Label(icon_box, text="DT", bg=C["accent"], fg="#fff",
             font=F.mb(10)).place(relx=0.5, rely=0.5, anchor="center")
 
         tf = tk.Frame(logo, bg=C["sidebar"])
         tf.pack(side=tk.LEFT, padx=(10, 0))
-        tk.Label(tf, text="Motor Documental",
+        tk.Label(tf, text="DocuTree",
             bg=C["sidebar"], fg=C["text"], font=F.b(13)).pack(anchor="w")
         tk.Label(tf, text="v1.0  ·  Universidad",
             bg=C["sidebar"], fg=C["muted"], font=F.r(9)).pack(anchor="w")
@@ -294,10 +301,10 @@ class MotorGUI:
         outer = tk.Frame(self.sidebar, bg=C["sidebar"])
         outer.pack(fill=tk.X)
 
-        ind = tk.Frame(outer, bg=C["sidebar"], width=2)
-        ind.pack(side=tk.RIGHT, fill=tk.Y)
+        ind = tk.Frame(outer, bg=C["sidebar"], width=3)
+        ind.pack(side=tk.LEFT, fill=tk.Y)
 
-        inner = tk.Frame(outer, bg=C["sidebar"], padx=16, pady=9)
+        inner = tk.Frame(outer, bg=C["sidebar"], padx=14, pady=9)
         inner.pack(fill=tk.BOTH, expand=True)
         lbl = tk.Label(inner, text=label,
             bg=C["sidebar"], fg=C["nav_fg"], font=F.r(12), anchor="w")
@@ -522,7 +529,7 @@ class MotorGUI:
 
         # Como funciona
         info = self._card(pady=(0, 20))
-        tk.Label(info, text="Como funciona el Motor Documental",
+        tk.Label(info, text="Como funciona DocuTree",
             bg=C["card"], fg=C["text"], font=F.b(12)).pack(anchor="w", pady=(0, 10))
         cf = tk.Frame(info, bg=C["card"])
         cf.pack(fill=tk.X)
@@ -729,7 +736,7 @@ class MotorGUI:
             bg=C["card"], fg=C["text"], font=F.b(13)).pack(anchor="w", pady=(0, 12))
 
         qb = tk.Frame(card, bg=C["card"])
-        qb.pack(fill=tk.X, pady=(0, 10))
+        qb.pack(fill=tk.X, pady=(0, 4))
 
         for col_idx, lbl in enumerate(["CAMPO", "OPERADOR", "VALOR"]):
             tk.Label(qb, text=lbl, bg=C["card"], fg=C["muted"],
@@ -739,8 +746,11 @@ class MotorGUI:
         self._sq_field = tk.StringVar(value=FIELDS[0])
         self._sq_op    = tk.StringVar(value="$eq")
 
-        ttk.Combobox(qb, textvariable=self._sq_field, values=FIELDS,
-            state="readonly", width=22).grid(row=1, column=0, padx=(0, 10))
+        fc = ttk.Combobox(qb, textvariable=self._sq_field, values=FIELDS,
+            state="readonly", width=22)
+        fc.grid(row=1, column=0, padx=(0, 10))
+        fc.bind("<<ComboboxSelected>>", lambda _: self._live_filter())
+
         ttk.Combobox(qb, textvariable=self._sq_op, values=OPERATORS,
             state="readonly", width=14).grid(row=1, column=1, padx=(0, 10))
 
@@ -750,13 +760,14 @@ class MotorGUI:
             highlightthickness=1, highlightbackground=C["inp_bdr"],
             highlightcolor=C["accent"])
         self._sq_val_e.grid(row=1, column=2, padx=(0, 10), ipady=5)
-        self._sq_val_e.bind("<Return>", lambda _: self._do_search())
+        self._sq_val_e.bind("<KeyRelease>", lambda _: self._live_filter())
+        self._sq_val_e.bind("<Return>",     lambda _: self._do_search())
 
         self._mk_btn(qb, "Buscar", C["accent"], "#fff",
             self._do_search, font=F.b(10), px=12, py=5).grid(row=1, column=3)
 
-        tk.Label(card, text=f"Motor O(N · C · k)  —  {len(self.doc_roots)} documentos indexados",
-            bg=C["card"], fg=C["muted"], font=F.r(9)).pack(anchor="w", pady=(8, 10))
+        tk.Label(card, text=f"DocuTree O(N · C · k)  —  {len(self.doc_roots)} documentos indexados",
+            bg=C["card"], fg=C["muted"], font=F.r(9)).pack(anchor="w", pady=(10, 10))
 
         self._sres_frame = tk.Frame(card, bg=C["card"])
         self._sres_frame.pack(fill=tk.X)
@@ -815,6 +826,45 @@ class MotorGUI:
                 w.bind("<Button-1>",
                     lambda _, i=did: self._switch_view("detail", data=i))
 
+    # ── Filtro en vivo ─────────────────────────────────────────────────────────
+
+    def _live_filter(self) -> None:
+        raw = self._sq_val_e.get().strip().lower()
+        field = self._sq_field.get()
+        if not raw:
+            self._render_search_rows(self._docs())
+            return
+        results = []
+        for d in self._docs():
+            if "." in field:
+                parts = field.split(".")
+                v: object = d
+                for p in parts:
+                    v = v.get(p, "") if isinstance(v, dict) else ""
+            else:
+                v = d.get(field, "")
+            if raw in str(v).lower():
+                results.append(d)
+        self._render_search_rows(results)
+
+    def _docs_filtered(self, raw: str) -> list[dict]:
+        if not self.coleccion or not raw:
+            return self._docs()
+        field = self._sq_field.get()
+        op    = self._sq_op.get()
+        try:
+            val: object = int(raw)
+        except ValueError:
+            try:
+                val = float(raw)
+            except ValueError:
+                val = raw
+        filtro = {field: val} if op == "$eq" else {field: {op: val}}
+        try:
+            return [ArbolDocumental.a_dict(r) for r in self.coleccion.find(filtro)]
+        except Exception:
+            return []
+
     # ══════════════════════════════════════════════════════════════════
     #  VISTA: ESTRUCTURA
     # ══════════════════════════════════════════════════════════════════
@@ -828,19 +878,21 @@ class MotorGUI:
         tk.Label(tc, text="Arbol Documental  —  NodoArbol",
             bg=C["card"], fg=C["text"], font=F.b(12)).pack(anchor="w", pady=(0, 10))
 
-        tree_cv = tk.Canvas(tc, bg=C["card"], highlightthickness=0, height=270)
+        tree_cv = tk.Canvas(tc, bg=C["card"], highlightthickness=0, height=285)
         tree_cv.pack(fill=tk.X)
         tree_cv.bind("<Configure>",
             lambda e, cv=tree_cv: self._draw_tree(cv, docs))
 
         leg = tk.Frame(tc, bg=C["card"])
-        leg.pack(anchor="w", pady=(8, 0))
+        leg.pack(anchor="w", pady=(6, 0))
         for color, lbl in [(C["accent"], "Raiz"), (C["accent2"], "Nivel 1"),
-                           (C["accent3"], "Nivel 2")]:
+                           (C["accent3"], "Nivel 2"), ("#85C4AA", "Nivel 3")]:
             tk.Label(leg, text="●", bg=C["card"], fg=color,
                 font=F.r(13)).pack(side=tk.LEFT, padx=(0, 3))
             tk.Label(leg, text=lbl, bg=C["card"], fg=C["muted"],
                 font=F.r(9)).pack(side=tk.LEFT, padx=(0, 14))
+        tk.Label(leg, text="  ·  Haz clic en un nodo para ver su informacion",
+            bg=C["card"], fg=C["dim"], font=F.r(9)).pack(side=tk.LEFT)
 
         # Lista enlazada card
         lc = self._card(pady=(0, 20))
@@ -865,38 +917,63 @@ class MotorGUI:
         cv.update_idletasks()
         W = cv.winfo_width() or 700
 
-        R0, R1, R2 = 28, 22, 18
-        lnames = [d.get("nombre", "?").split()[-1][:7] for d in docs]
+        R0, R1, R2, R3 = 26, 20, 15, 12
+        C4 = "#85C4AA"
 
-        nodes = [
-            (W / 2,       38,  lnames[0] if lnames else "raiz",          C["accent"],  R0),
-            (W * 0.28,   120,  lnames[1] if len(lnames) > 1 else "—",    C["accent2"], R1),
-            (W * 0.72,   120,  lnames[2] if len(lnames) > 2 else "—",    C["accent2"], R1),
-            (W * 0.13,   200,  lnames[3] if len(lnames) > 3 else "—",    C["accent3"], R2),
-            (W * 0.40,   200,  lnames[4] if len(lnames) > 4 else "—",    C["accent3"], R2),
-            (W * 0.60,   200,  lnames[5] if len(lnames) > 5 else "—",    C["accent3"], R2),
-            (W * 0.86,   200,  lnames[6] if len(lnames) > 6 else "—",    C["accent3"], R2),
+        def ln(i: int) -> str:
+            return docs[i].get("nombre", "?").split()[-1][:5] if i < len(docs) else "—"
+
+        node_defs = [
+            # nivel 0
+            (W / 2,         33, ln(0),  C["accent"],  R0,  0),
+            # nivel 1
+            (W * 0.25,     100, ln(1),  C["accent2"], R1,  1),
+            (W * 0.75,     100, ln(2),  C["accent2"], R1,  2),
+            # nivel 2
+            (W * 0.125,    167, ln(3),  C["accent3"], R2,  3),
+            (W * 0.375,    167, ln(4),  C["accent3"], R2,  4),
+            (W * 0.625,    167, ln(5),  C["accent3"], R2,  5),
+            (W * 0.875,    167, ln(6),  C["accent3"], R2,  6),
+            # nivel 3
+            (W *  1 / 16,  234, ln(7),  C4,           R3,  7),
+            (W *  3 / 16,  234, ln(8),  C4,           R3,  8),
+            (W *  5 / 16,  234, ln(9),  C4,           R3,  9),
+            (W *  7 / 16,  234, ln(10), C4,           R3, 10),
+            (W *  9 / 16,  234, ln(11), C4,           R3, 11),
+            (W * 11 / 16,  234, ln(12), C4,           R3, 12),
+            (W * 13 / 16,  234, ln(13), C4,           R3, 13),
+            (W * 15 / 16,  234, ln(14), C4,           R3, 14),
         ]
+        self._tree_node_data  = [(x, y, r, i) for x, y, _, _, r, i in node_defs]
+        self._tree_node_fills = {i: fill for _, _, _, fill, _, i in node_defs}
+        self._tree_node_ovals: dict[int, int] = {}
+        self._tree_hovered    = -1
 
-        for a, b in [(0,1),(0,2),(1,3),(1,4),(2,5),(2,6)]:
-            ax, ay, _, _, ra = nodes[a]
-            bx, by, _, _, rb = nodes[b]
+        edges = [(0,1),(0,2),(1,3),(1,4),(2,5),(2,6),
+                 (3,7),(3,8),(4,9),(4,10),(5,11),(5,12),(6,13),(6,14)]
+        for a, b in edges:
+            ax, ay, _, _, ra, _ = node_defs[a]
+            bx, by, _, _, rb, _ = node_defs[b]
             dx, dy = bx - ax, by - ay
             dist = (dx**2 + dy**2) ** 0.5
             if dist:
                 cv.create_line(
                     ax + dx * ra / dist, ay + dy * ra / dist,
                     bx - dx * rb / dist, by - dy * rb / dist,
-                    fill="#b2dfc8", width=1.5)
+                    fill="#b2dfc8", width=1.2)
 
-        for x, y, lbl, fill, r in nodes:
-            cv.create_oval(x-r, y-r, x+r, y+r, fill=fill, outline="")
-            fs = 10 if r >= R0 else (9 if r >= R1 else 8)
+        for x, y, lbl, fill, r, idx in node_defs:
+            oid = cv.create_oval(x-r, y-r, x+r, y+r, fill=fill, outline="")
+            self._tree_node_ovals[idx] = oid
+            fs = 9 if r >= R0 else (8 if r >= R1 else (7 if r >= R2 else 6))
             cv.create_text(x, y, text=lbl, fill="#fff", font=F.m(fs))
 
-        for y_pos, lbl in [(38, "Nivel 0"), (120, "Nivel 1"), (200, "Nivel 2")]:
-            cv.create_text(W - 8, y_pos, text=lbl,
-                fill=C["dimmer"], font=F.m(9), anchor="e")
+        for y_pos, lbl in [(33, "N0"), (100, "N1"), (167, "N2"), (234, "N3")]:
+            cv.create_text(W - 4, y_pos, text=lbl,
+                fill=C["dimmer"], font=F.m(8), anchor="e")
+
+        cv.bind("<Button-1>", lambda e, d=docs: self._tree_click(cv, e.x, e.y, d))
+        cv.bind("<Motion>",   lambda e: self._tree_motion(cv, e.x, e.y))
 
     def _draw_ll(self, cv: tk.Canvas, docs: list[dict]) -> None:
         cv.delete("all")
@@ -931,6 +1008,79 @@ class MotorGUI:
                     fill=C["err"], width=1.5)
                 cv.create_text(x+BW+28, y+BH/2,
                     text="NULL", fill=C["err"], font=F.mb(8), anchor="w")
+
+    # ── Tree interaction ───────────────────────────────────────────────────────
+
+    def _tree_click(self, cv: tk.Canvas, mx: float, my: float,
+                    docs: list[dict]) -> None:
+        for x, y, r, idx in getattr(self, "_tree_node_data", []):
+            if (mx - x) ** 2 + (my - y) ** 2 <= r ** 2:
+                if idx < len(docs):
+                    rx = cv.winfo_rootx() + int(mx)
+                    ry = cv.winfo_rooty() + int(my)
+                    self._show_tree_popup(rx, ry, docs[idx])
+                return
+
+    def _tree_motion(self, cv: tk.Canvas, mx: float, my: float) -> None:
+        prev = getattr(self, "_tree_hovered", -1)
+        hit  = -1
+        for x, y, r, idx in getattr(self, "_tree_node_data", []):
+            if (mx - x) ** 2 + (my - y) ** 2 <= r ** 2:
+                hit = idx
+                break
+        if hit != prev:
+            ovals = getattr(self, "_tree_node_ovals", {})
+            fills = getattr(self, "_tree_node_fills", {})
+            if prev >= 0 and prev in ovals:
+                cv.itemconfig(ovals[prev], fill=fills.get(prev, C["accent"]))
+            if hit >= 0 and hit in ovals:
+                cv.itemconfig(ovals[hit],
+                    fill=RoundedButton._shift(fills.get(hit, C["accent"]), 24))
+            self._tree_hovered = hit
+
+    def _show_tree_popup(self, x_root: int, y_root: int, doc: dict) -> None:
+        popup = tk.Toplevel(self.root)
+        popup.title("Nodo del arbol")
+        popup.geometry(f"+{x_root + 14}+{y_root - 40}")
+        popup.configure(bg=C["card"])
+        popup.resizable(False, False)
+        popup.transient(self.root)
+        popup.grab_set()
+
+        hdr = tk.Frame(popup, bg=C["accent"], padx=16, pady=12)
+        hdr.pack(fill=tk.X)
+        name = doc.get("nombre", "")
+        tk.Label(hdr, text=name, bg=C["accent"], fg="#fff",
+            font=F.b(13)).pack(anchor="w")
+        tk.Label(hdr, text=f"NodoArbol  ·  id: {doc.get('id', '')}",
+            bg=C["accent"], fg="#c8f0e0", font=F.r(9)).pack(anchor="w")
+
+        body = tk.Frame(popup, bg=C["card"], padx=16, pady=10)
+        body.pack(fill=tk.BOTH)
+
+        direc = doc.get("direccion", {})
+        if not isinstance(direc, dict):
+            direc = {}
+        for k, v in [
+            ("edad",        str(doc.get("edad", ""))),
+            ("ciudad",      doc.get("ciudad", "")),
+            ("barrio",      direc.get("barrio", "")),
+            ("cod. postal", direc.get("codigo_postal", "")),
+        ]:
+            tk.Frame(body, bg=C["tbl"], height=1).pack(fill=tk.X, pady=(4, 0))
+            row = tk.Frame(body, bg=C["card"])
+            row.pack(fill=tk.X, pady=(0, 2))
+            tk.Label(row, text=k, bg=C["card"], fg=C["muted"],
+                font=F.r(10), width=12, anchor="w").pack(side=tk.LEFT)
+            tk.Label(row, text=v, bg=C["card"], fg=C["text2"],
+                font=F.b(10)).pack(side=tk.LEFT)
+
+        tk.Frame(popup, bg=C["border"], height=1).pack(fill=tk.X, pady=(8, 0))
+        foot = tk.Frame(popup, bg=C["card"], padx=16, pady=8)
+        foot.pack(fill=tk.X)
+        self._mk_btn(foot, "Cerrar", C["inp"], C["text3"],
+            popup.destroy, font=F.r(10), px=14, py=6,
+            border=C["inp_bdr"]).pack(side=tk.RIGHT)
 
     # ══════════════════════════════════════════════════════════════════
     #  VISTA: DETALLE
@@ -1032,7 +1182,7 @@ class MotorGUI:
 
 def main() -> None:
     root = tk.Tk()
-    MotorGUI(root)
+    DocuTreeGUI(root)
     root.mainloop()
 
 

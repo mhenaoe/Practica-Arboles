@@ -1,1 +1,1 @@
-# GUI package for Motor Documental
+# GUI package for DocuTree
