@@ -722,7 +722,7 @@ class DocuTreeGUI:
         self.doc_roots = list(self.coleccion.documentos)
         self._foot_docs.config(text=f"{len(self.doc_roots)} documentos")
         messagebox.showinfo("Exito", f"Documento #{new_id} insertado correctamente.")
-        self._switch_view("explorer")
+        self._switch_view("structure")
 
     # ══════════════════════════════════════════════════════════════════
     #  VISTA: BUSCAR
@@ -829,23 +829,30 @@ class DocuTreeGUI:
     # ── Filtro en vivo ─────────────────────────────────────────────────────────
 
     def _live_filter(self) -> None:
-        raw = self._sq_val_e.get().strip().lower()
+        raw   = self._sq_val_e.get().strip()
         field = self._sq_field.get()
+        op    = self._sq_op.get()
+
         if not raw:
             self._render_search_rows(self._docs())
             return
-        results = []
-        for d in self._docs():
-            if "." in field:
-                parts = field.split(".")
-                v: object = d
-                for p in parts:
-                    v = v.get(p, "") if isinstance(v, dict) else ""
-            else:
-                v = d.get(field, "")
-            if raw in str(v).lower():
-                results.append(d)
-        self._render_search_rows(results)
+
+        if op == "$eq":
+            needle = raw.lower()
+            results = []
+            for d in self._docs():
+                if "." in field:
+                    parts = field.split(".")
+                    v: object = d
+                    for p in parts:
+                        v = v.get(p, "") if isinstance(v, dict) else ""
+                else:
+                    v = d.get(field, "")
+                if needle in str(v).lower():
+                    results.append(d)
+            self._render_search_rows(results)
+        else:
+            self._render_search_rows(self._docs_filtered(raw))
 
     def _docs_filtered(self, raw: str) -> list[dict]:
         if not self.coleccion or not raw:
@@ -878,7 +885,7 @@ class DocuTreeGUI:
         tk.Label(tc, text="Arbol Documental  —  NodoArbol",
             bg=C["card"], fg=C["text"], font=F.b(12)).pack(anchor="w", pady=(0, 10))
 
-        tree_cv = tk.Canvas(tc, bg=C["card"], highlightthickness=0, height=285)
+        tree_cv = tk.Canvas(tc, bg=C["card"], highlightthickness=0, height=310)
         tree_cv.pack(fill=tk.X)
         tree_cv.bind("<Configure>",
             lambda e, cv=tree_cv: self._draw_tree(cv, docs))
@@ -916,61 +923,76 @@ class DocuTreeGUI:
         cv.delete("all")
         cv.update_idletasks()
         W = cv.winfo_width() or 700
+        H = cv.winfo_height() or 310
 
-        R0, R1, R2, R3 = 26, 20, 15, 12
-        C4 = "#85C4AA"
+        MAX_NODES = 31
+        visible   = docs[:MAX_NODES]
+        n         = len(visible)
+        if n == 0:
+            return
 
-        def ln(i: int) -> str:
-            return docs[i].get("nombre", "?").split()[-1][:5] if i < len(docs) else "—"
+        # Nivel de cada nodo en árbol binario completo: nivel = bits(i+1) - 1
+        def node_level(i: int) -> int:
+            return (i + 1).bit_length() - 1
 
-        node_defs = [
-            # nivel 0
-            (W / 2,         33, ln(0),  C["accent"],  R0,  0),
-            # nivel 1
-            (W * 0.25,     100, ln(1),  C["accent2"], R1,  1),
-            (W * 0.75,     100, ln(2),  C["accent2"], R1,  2),
-            # nivel 2
-            (W * 0.125,    167, ln(3),  C["accent3"], R2,  3),
-            (W * 0.375,    167, ln(4),  C["accent3"], R2,  4),
-            (W * 0.625,    167, ln(5),  C["accent3"], R2,  5),
-            (W * 0.875,    167, ln(6),  C["accent3"], R2,  6),
-            # nivel 3
-            (W *  1 / 16,  234, ln(7),  C4,           R3,  7),
-            (W *  3 / 16,  234, ln(8),  C4,           R3,  8),
-            (W *  5 / 16,  234, ln(9),  C4,           R3,  9),
-            (W *  7 / 16,  234, ln(10), C4,           R3, 10),
-            (W *  9 / 16,  234, ln(11), C4,           R3, 11),
-            (W * 11 / 16,  234, ln(12), C4,           R3, 12),
-            (W * 13 / 16,  234, ln(13), C4,           R3, 13),
-            (W * 15 / 16,  234, ln(14), C4,           R3, 14),
-        ]
-        self._tree_node_data  = [(x, y, r, i) for x, y, _, _, r, i in node_defs]
-        self._tree_node_fills = {i: fill for _, _, _, fill, _, i in node_defs}
-        self._tree_node_ovals: dict[int, int] = {}
+        levels = node_level(n - 1) + 1
+
+        FILLS = [C["accent"], C["accent2"], C["accent3"], "#85C4AA", "#A8D4C8"]
+        RADII = [26, 20, 15, 12, 9]
+
+        y_top  = 32
+        y_bot  = H - 16
+        y_step = (y_bot - y_top) / max(levels - 1, 1)
+
+        self._tree_node_data  = []
+        self._tree_node_fills = {}
+        self._tree_node_ovals = {}
         self._tree_hovered    = -1
 
-        edges = [(0,1),(0,2),(1,3),(1,4),(2,5),(2,6),
-                 (3,7),(3,8),(4,9),(4,10),(5,11),(5,12),(6,13),(6,14)]
-        for a, b in edges:
-            ax, ay, _, _, ra, _ = node_defs[a]
-            bx, by, _, _, rb, _ = node_defs[b]
-            dx, dy = bx - ax, by - ay
-            dist = (dx**2 + dy**2) ** 0.5
+        # Calcular posición (x, y) de cada nodo dinámicamente
+        pos: dict[int, tuple] = {}
+        for i in range(n):
+            lv    = node_level(i)
+            idx_in_lv = i - ((1 << lv) - 1)
+            count = 1 << lv
+            x     = W * (idx_in_lv + 0.5) / count
+            y     = y_top + lv * y_step
+            r     = RADII[min(lv, len(RADII) - 1)]
+            fill  = FILLS[min(lv, len(FILLS) - 1)]
+            pos[i] = (x, y, r, fill)
+
+        # Aristas
+        for i in range(1, n):
+            px, py, pr, _ = pos[(i - 1) // 2]
+            cx, cy, cr, _ = pos[i]
+            dx, dy = cx - px, cy - py
+            dist   = (dx**2 + dy**2) ** 0.5
             if dist:
                 cv.create_line(
-                    ax + dx * ra / dist, ay + dy * ra / dist,
-                    bx - dx * rb / dist, by - dy * rb / dist,
+                    px + dx * pr / dist, py + dy * pr / dist,
+                    cx - dx * cr / dist, cy - dy * cr / dist,
                     fill="#b2dfc8", width=1.2)
 
-        for x, y, lbl, fill, r, idx in node_defs:
-            oid = cv.create_oval(x-r, y-r, x+r, y+r, fill=fill, outline="")
-            self._tree_node_ovals[idx] = oid
-            fs = 9 if r >= R0 else (8 if r >= R1 else (7 if r >= R2 else 6))
+        # Nodos
+        seen_levels: set[int] = set()
+        for i, (x, y, r, fill) in pos.items():
+            oid  = cv.create_oval(x - r, y - r, x + r, y + r, fill=fill, outline="")
+            lbl  = visible[i].get("nombre", "?").split()[-1][:5]
+            lv   = node_level(i)
+            fs   = max(6, 9 - lv)
             cv.create_text(x, y, text=lbl, fill="#fff", font=F.m(fs))
+            self._tree_node_ovals[i] = oid
+            self._tree_node_data.append((x, y, r, i))
+            self._tree_node_fills[i] = fill
+            if lv not in seen_levels:
+                cv.create_text(W - 4, y, text=f"N{lv}",
+                    fill=C["dimmer"], font=F.m(8), anchor="e")
+                seen_levels.add(lv)
 
-        for y_pos, lbl in [(33, "N0"), (100, "N1"), (167, "N2"), (234, "N3")]:
-            cv.create_text(W - 4, y_pos, text=lbl,
-                fill=C["dimmer"], font=F.m(8), anchor="e")
+        if len(docs) > MAX_NODES:
+            cv.create_text(W / 2, H - 6, anchor="center",
+                text=f"Mostrando {MAX_NODES} de {len(docs)} documentos",
+                fill=C["dim"], font=F.r(8))
 
         cv.bind("<Button-1>", lambda e, d=docs: self._tree_click(cv, e.x, e.y, d))
         cv.bind("<Motion>",   lambda e: self._tree_motion(cv, e.x, e.y))
