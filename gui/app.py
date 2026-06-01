@@ -9,7 +9,7 @@ import os
 import sys
 import tkinter as tk
 import tkinter.font as tkfont
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -906,10 +906,15 @@ class DocuTreeGUI:
         tk.Label(lc, text="Lista Enlazada  —  ListaDocumentos",
             bg=C["card"], fg=C["text"], font=F.b(12)).pack(anchor="w", pady=(0, 10))
 
-        ll_cv = tk.Canvas(lc, bg=C["card"], highlightthickness=0, height=90)
+        ll_wrap = tk.Frame(lc, bg=C["card"])
+        ll_wrap.pack(fill=tk.X)
+        ll_hsb = tk.Scrollbar(ll_wrap, orient="horizontal")
+        ll_hsb.pack(side=tk.BOTTOM, fill=tk.X)
+        ll_cv = tk.Canvas(ll_wrap, bg=C["card"], highlightthickness=0,
+            height=82, xscrollcommand=ll_hsb.set)
         ll_cv.pack(fill=tk.X)
-        ll_cv.bind("<Configure>",
-            lambda e, cv=ll_cv: self._draw_ll(cv, docs[:6]))
+        ll_hsb.config(command=ll_cv.xview)
+        ll_cv.bind("<Configure>", lambda _, cv=ll_cv: self._draw_ll(cv, docs))
 
         info = tk.Frame(lc, bg=C["card"])
         info.pack(anchor="w", pady=(8, 0))
@@ -1000,12 +1005,12 @@ class DocuTreeGUI:
     def _draw_ll(self, cv: tk.Canvas, docs: list[dict]) -> None:
         cv.delete("all")
         cv.update_idletasks()
-        W = cv.winfo_width() or 700
-        BW, BH, GAP = 110, 58, 32
+        BW, BH, GAP = 100, 54, 26
         n = len(docs)
-        total = n * BW + (n - 1) * GAP
-        sx = max(10, (W - total) / 2)
-        y = 14
+        total_w = 10 + n * BW + max(n - 1, 0) * GAP + 60
+        cv.config(scrollregion=(0, 0, total_w, BH + 24))
+        sx = 10
+        y = 10
 
         for i, d in enumerate(docs):
             x = sx + i * (BW + GAP)
@@ -1061,48 +1066,271 @@ class DocuTreeGUI:
             self._tree_hovered = hit
 
     def _show_tree_popup(self, x_root: int, y_root: int, doc: dict) -> None:
+        pw, ph = 600, 430
+        sw = self.root.winfo_screenwidth()
+        sh = self.root.winfo_screenheight()
+        px = max(0, min(x_root - pw // 2, sw - pw))
+        py = max(0, min(y_root - ph // 2, sh - ph))
+
         popup = tk.Toplevel(self.root)
-        popup.title("Nodo del arbol")
-        popup.geometry(f"+{x_root + 14}+{y_root - 40}")
+        popup.title("Arbol ⟷ JSON  —  Relacion bidireccional")
+        popup.geometry(f"{pw}x{ph}+{px}+{py}")
         popup.configure(bg=C["card"])
-        popup.resizable(False, False)
+        popup.resizable(True, True)
         popup.transient(self.root)
         popup.grab_set()
 
-        hdr = tk.Frame(popup, bg=C["accent"], padx=16, pady=12)
+        # Header
+        hdr = tk.Frame(popup, bg=C["accent"], padx=16, pady=10)
         hdr.pack(fill=tk.X)
         name = doc.get("nombre", "")
         tk.Label(hdr, text=name, bg=C["accent"], fg="#fff",
-            font=F.b(13)).pack(anchor="w")
-        tk.Label(hdr, text=f"NodoArbol  ·  id: {doc.get('id', '')}",
-            bg=C["accent"], fg="#c8f0e0", font=F.r(9)).pack(anchor="w")
+            font=F.b(13)).pack(side=tk.LEFT)
+        tk.Label(hdr, text=f"    NodoArbol  ·  id: {doc.get('id', '')}",
+            bg=C["accent"], fg="#c8f0e0", font=F.r(9)).pack(side=tk.LEFT)
 
-        body = tk.Frame(popup, bg=C["card"], padx=16, pady=10)
-        body.pack(fill=tk.BOTH)
+        # Cuerpo: dos paneles con grid
+        body = tk.Frame(popup, bg=C["card"], padx=10, pady=10)
+        body.pack(fill=tk.BOTH, expand=True)
+        body.columnconfigure(0, weight=1)
+        body.columnconfigure(1, weight=0)
+        body.columnconfigure(2, weight=1)
+        body.rowconfigure(1, weight=1)
 
-        direc = doc.get("direccion", {})
-        if not isinstance(direc, dict):
-            direc = {}
-        for k, v in [
-            ("edad",        str(doc.get("edad", ""))),
-            ("ciudad",      doc.get("ciudad", "")),
-            ("barrio",      direc.get("barrio", "")),
-            ("cod. postal", direc.get("codigo_postal", "")),
-        ]:
-            tk.Frame(body, bg=C["tbl"], height=1).pack(fill=tk.X, pady=(4, 0))
-            row = tk.Frame(body, bg=C["card"])
-            row.pack(fill=tk.X, pady=(0, 2))
-            tk.Label(row, text=k, bg=C["card"], fg=C["muted"],
-                font=F.r(10), width=12, anchor="w").pack(side=tk.LEFT)
-            tk.Label(row, text=v, bg=C["card"], fg=C["text2"],
-                font=F.b(10)).pack(side=tk.LEFT)
+        # Panel izquierdo — árbol
+        tk.Frame(body, bg=C["accent3"], padx=8, pady=4).grid(
+            row=0, column=0, sticky="ew")
+        tk.Label(body, text="Arbol Documental  (NodoArbol)",
+            bg=C["accent3"], fg=C["text"], font=F.b(9),
+            padx=8, pady=4).grid(row=0, column=0, sticky="ew")
 
-        tk.Frame(popup, bg=C["border"], height=1).pack(fill=tk.X, pady=(8, 0))
+        left_f = tk.Frame(body, bg=C["tbl_h"],
+            highlightthickness=1, highlightbackground=C["border"])
+        left_f.grid(row=1, column=0, sticky="nsew")
+        left_sb = tk.Scrollbar(left_f, orient="vertical")
+        left_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        tree_txt = tk.Text(left_f, bg=C["tbl_h"], fg=C["text2"],
+            font=F.m(9), relief=tk.FLAT, padx=8, pady=6,
+            wrap=tk.NONE, highlightthickness=0,
+            yscrollcommand=left_sb.set, width=24)
+        tree_txt.pack(fill=tk.BOTH, expand=True)
+        left_sb.config(command=tree_txt.yview)
+        tree_txt.insert(tk.END, "● documento\n" + "\n".join(self._tree_repr(doc)))
+        tree_txt.config(state=tk.DISABLED)
+
+        # Flecha central
+        ctr = tk.Frame(body, bg=C["card"], padx=6)
+        ctr.grid(row=0, column=1, rowspan=2, sticky="ns")
+        tk.Label(ctr, text="⟷", bg=C["card"], fg=C["accent"],
+            font=F.b(22)).pack(expand=True)
+
+        # Panel derecho — JSON
+        tk.Label(body, text="JSON equivalente",
+            bg=C["badge"], fg=C["badge_fg"], font=F.b(9),
+            padx=8, pady=4).grid(row=0, column=2, sticky="ew")
+
+        right_f = tk.Frame(body, bg=C["hint"],
+            highlightthickness=1, highlightbackground=C["hint_bdr"])
+        right_f.grid(row=1, column=2, sticky="nsew")
+        right_sb = tk.Scrollbar(right_f, orient="vertical")
+        right_sb.pack(side=tk.RIGHT, fill=tk.Y)
+        json_txt = tk.Text(right_f, bg=C["hint"], fg=C["text3"],
+            font=F.m(9), relief=tk.FLAT, padx=8, pady=6,
+            wrap=tk.NONE, highlightthickness=0,
+            yscrollcommand=right_sb.set, width=24)
+        json_txt.pack(fill=tk.BOTH, expand=True)
+        right_sb.config(command=json_txt.yview)
+        json_txt.insert(tk.END, json.dumps(doc, indent=2, ensure_ascii=False))
+        json_txt.config(state=tk.DISABLED)
+
+        # Barra de info bidireccional
+        info = tk.Frame(popup, bg=C["hint"], padx=14, pady=6)
+        info.pack(fill=tk.X)
+        tk.Label(info,
+            text="JSON  →  NodoArbol  (cargar / insertar)     "
+                 "NodoArbol  →  JSON  (consultar / exportar)",
+            bg=C["hint"], fg=C["text3"], font=F.r(9)).pack()
+
+        # Footer
+        tk.Frame(popup, bg=C["border"], height=1).pack(fill=tk.X)
         foot = tk.Frame(popup, bg=C["card"], padx=16, pady=8)
         foot.pack(fill=tk.X)
+        self._mk_btn(foot, "Descargar JSON", C["accent"], "#fff",
+            lambda: self._download_json(doc),
+            font=F.b(10), px=14, py=6).pack(side=tk.LEFT, padx=(0, 8))
+        self._mk_btn(foot, "Descargar PDF", C["accent2"], "#fff",
+            lambda: self._download_pdf(doc),
+            font=F.b(10), px=14, py=6).pack(side=tk.LEFT)
         self._mk_btn(foot, "Cerrar", C["inp"], C["text3"],
             popup.destroy, font=F.r(10), px=14, py=6,
             border=C["inp_bdr"]).pack(side=tk.RIGHT)
+
+    def _tree_repr(self, d: dict, prefix: str = "") -> list[str]:
+        lines = []
+        items = list(d.items())
+        for idx, (k, v) in enumerate(items):
+            last   = idx == len(items) - 1
+            branch = "└─ " if last else "├─ "
+            child  = prefix + ("   " if last else "│  ")
+            if isinstance(v, dict):
+                lines.append(f"{prefix}{branch}{k}")
+                lines.extend(self._tree_repr(v, child))
+            else:
+                lines.append(f"{prefix}{branch}{k}:  {v}")
+        return lines
+
+    def _download_json(self, doc: dict) -> None:
+        nombre = doc.get("nombre", "documento").replace(" ", "_")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json"), ("Todos los archivos", "*.*")],
+            initialfile=f"{nombre}.json",
+            title="Guardar documento como JSON")
+        if path:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh, indent=2, ensure_ascii=False)
+            messagebox.showinfo("Guardado", f"Archivo guardado en:\n{path}")
+
+    def _download_pdf(self, doc: dict) -> None:
+        try:
+            from fpdf import FPDF
+        except ImportError:
+            messagebox.showerror(
+                "Dependencia faltante",
+                "Instala fpdf2 para exportar PDF:\n\n  pip install fpdf2")
+            return
+
+        nombre = doc.get("nombre", "documento").replace(" ", "_")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF", "*.pdf"), ("Todos los archivos", "*.*")],
+            initialfile=f"{nombre}.pdf",
+            title="Guardar documento como PDF")
+        if not path:
+            return
+
+        def tree_ascii(d: dict, prefix: str = "") -> list[str]:
+            lines: list[str] = []
+            items = list(d.items())
+            for i, (k, v) in enumerate(items):
+                last = i == len(items) - 1
+                br   = "\\-- " if last else "+-- "
+                ch   = prefix + ("    " if last else "|   ")
+                if isinstance(v, dict):
+                    lines.append(f"{prefix}{br}{k}")
+                    lines.extend(tree_ascii(v, ch))
+                else:
+                    lines.append(f"{prefix}{br}{k}: {v}")
+            return lines
+
+        tree_lines = ["* documento"] + tree_ascii(doc)
+        json_lines = json.dumps(doc, indent=2, ensure_ascii=False).split("\n")
+
+        # Paleta (R, G, B)
+        ACC   = (29,  158, 117)
+        ACC2  = (93,  202, 165)
+        ACC3  = (159, 225, 203)
+        BADGE = (220, 242, 232)
+        BFG   = (15,  110, 86)
+        TBL   = (246, 250, 247)
+        TBL2  = (249, 251, 249)
+        HNT   = (240, 250, 244)
+        HNT2  = (245, 252, 247)
+        TXT   = (26,  46,  34)
+        TXT2  = (42,  61,  48)
+        TXT3  = (74,  110, 88)
+        MUT   = (122, 171, 138)
+
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_margins(15, 15, 15)
+        W = pdf.w - 30
+
+        # Encabezado principal
+        pdf.set_fill_color(*ACC)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 20)
+        pdf.cell(W, 14, "DocuTree", fill=True, align="C",
+            new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 9)
+        pdf.cell(W, 8,
+            "Motor Documental  |  Arboles + Listas Enlazadas  |  Proyecto Academico",
+            fill=True, align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # Banner del documento
+        pdf.set_fill_color(*ACC2)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(W, 10,
+            f"  {doc.get('nombre', '')}    id: {doc.get('id', '')}",
+            fill=True, new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(3)
+
+        # Etiqueta bidireccional
+        pdf.set_fill_color(*BADGE)
+        pdf.set_text_color(*BFG)
+        pdf.set_font("Helvetica", "I", 8)
+        pdf.cell(W, 7,
+            "Relacion bidireccional:  JSON -> NodoArbol (insertar)"
+            "   |   NodoArbol -> JSON (consultar)",
+            fill=True, align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(4)
+
+        # Encabezados de columnas
+        col_w = (W - 8) / 2
+        pdf.set_fill_color(*ACC3)
+        pdf.set_text_color(*TXT)
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.cell(col_w, 7, "  Arbol Documental  (NodoArbol)", fill=True, border=1)
+        pdf.cell(8, 7, "", border=0)
+        pdf.set_fill_color(*BADGE)
+        pdf.set_text_color(*BFG)
+        pdf.cell(col_w, 7, "  JSON equivalente", fill=True, border=1,
+            new_x="LMARGIN", new_y="NEXT")
+
+        # Filas de contenido
+        max_rows = max(len(tree_lines), len(json_lines))
+        row_h    = 5.2
+        col1_x   = pdf.l_margin
+        col2_x   = pdf.l_margin + col_w + 8
+        pdf.set_font("Courier", "", 7)
+
+        for i in range(max_rows):
+            tl   = (tree_lines[i] if i < len(tree_lines) else "")[:60]
+            jl   = (json_lines[i] if i < len(json_lines) else "")[:60]
+            row_y = pdf.get_y()
+
+            pdf.set_xy(col1_x, row_y)
+            pdf.set_fill_color(*(TBL if i % 2 == 0 else TBL2))
+            pdf.set_text_color(*TXT2)
+            pdf.cell(col_w, row_h, f"  {tl}", fill=True, border="LR")
+
+            pdf.set_xy(col2_x, row_y)
+            pdf.set_fill_color(*(HNT if i % 2 == 0 else HNT2))
+            pdf.set_text_color(*TXT3)
+            pdf.cell(col_w, row_h, f"  {jl}", fill=True, border="LR",
+                new_x="LMARGIN", new_y="NEXT")
+
+        # Cerrar bordes inferiores
+        end_y = pdf.get_y()
+        pdf.set_xy(col1_x, end_y)
+        pdf.cell(col_w, 0, "", border="B")
+        pdf.set_xy(col2_x, end_y)
+        pdf.cell(col_w, 0, "", border="B", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(6)
+
+        # Pie de página
+        pdf.set_fill_color(*TBL)
+        pdf.set_text_color(*MUT)
+        pdf.set_font("Helvetica", "", 8)
+        pdf.cell(W, 7,
+            "DocuTree  |  Proyecto Academico  |  Estructuras de Datos",
+            fill=True, align="C", new_x="LMARGIN", new_y="NEXT")
+
+        pdf.output(path)
+        messagebox.showinfo("PDF guardado", f"Archivo guardado en:\n{path}")
 
     # ══════════════════════════════════════════════════════════════════
     #  VISTA: DETALLE
