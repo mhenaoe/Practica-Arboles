@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 import sys
 import tkinter as tk
 import tkinter.font as tkfont
@@ -53,7 +54,29 @@ C = {
 }
 
 FIELDS    = ["id", "nombre", "edad", "ciudad", "direccion.barrio", "direccion.codigo_postal"]
-OPERATORS = ["$eq", "$ne", "$gt", "$gte", "$lt", "$lte"]
+
+OPERATORS = [
+    "Igual a  (=)",
+    "Diferente  (≠)",
+    "Mayor que  (>)",
+    "Mayor o igual  (≥)",
+    "Menor que  (<)",
+    "Menor o igual  (≤)",
+]
+OPERATOR_MAP: dict[str, str] = {
+    "Igual a  (=)":        "$eq",
+    "Diferente  (≠)":      "$ne",
+    "Mayor que  (>)":      "$gt",
+    "Mayor o igual  (≥)":  "$gte",
+    "Menor que  (<)":      "$lt",
+    "Menor o igual  (≤)":  "$lte",
+}
+STRING_FIELDS = frozenset({"nombre", "ciudad", "direccion.barrio", "direccion.codigo_postal"})
+NUMERIC_OPS   = frozenset({"$gt", "$gte", "$lt", "$lte"})
+
+_NAME_RE = re.compile(r"^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$")
+_TEXT_RE = re.compile(r"^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s\-]+$")
+_CP_RE   = re.compile(r"^\d{1,10}$")
 
 NAV = [
     ("Dashboard",  "dashboard"),
@@ -694,14 +717,51 @@ class DocuTreeGUI:
             v = e.get().strip()
             vals[key] = "" if v == ph else v
 
-        if not vals.get("nombre"):
-            self._insert_err.config(text="El nombre es obligatorio.")
+        nombre = vals.get("nombre", "")
+        if not nombre:
+            self._insert_err.config(text="⚠  El nombre es obligatorio.")
+            return
+        if not _NAME_RE.match(nombre):
+            self._insert_err.config(
+                text="⚠  El nombre solo puede contener letras y espacios (sin numeros ni caracteres especiales).")
             return
 
-        try:
-            edad = int(vals["edad"]) if vals.get("edad") else 0
-        except ValueError:
-            edad = 0
+        edad_str = vals.get("edad", "")
+        if not edad_str:
+            self._insert_err.config(text="⚠  La edad es obligatoria.")
+            return
+        if not edad_str.isdigit() or not (1 <= int(edad_str) <= 120):
+            self._insert_err.config(
+                text="⚠  La edad debe ser un numero entero entre 1 y 120.")
+            return
+        edad = int(edad_str)
+
+        ciudad = vals.get("ciudad", "")
+        if not ciudad:
+            self._insert_err.config(text="⚠  La ciudad es obligatoria.")
+            return
+        if not _TEXT_RE.match(ciudad):
+            self._insert_err.config(
+                text="⚠  La ciudad solo puede contener letras, espacios y guiones.")
+            return
+
+        barrio = vals.get("barrio", "")
+        if not barrio:
+            self._insert_err.config(text="⚠  El barrio es obligatorio.")
+            return
+        if not _TEXT_RE.match(barrio):
+            self._insert_err.config(
+                text="⚠  El barrio solo puede contener letras, espacios y guiones.")
+            return
+
+        cp = vals.get("cp", "")
+        if not cp:
+            self._insert_err.config(text="⚠  El codigo postal es obligatorio.")
+            return
+        if not _CP_RE.match(cp):
+            self._insert_err.config(
+                text="⚠  El codigo postal solo puede contener digitos.")
+            return
 
         all_docs = self._docs()
         new_id = max((d.get("id", 0) for d in all_docs), default=0) + 1
@@ -744,15 +804,17 @@ class DocuTreeGUI:
                     sticky="w", padx=(0, 10), pady=(0, 4))
 
         self._sq_field = tk.StringVar(value=FIELDS[0])
-        self._sq_op    = tk.StringVar(value="$eq")
+        self._sq_op    = tk.StringVar(value=OPERATORS[0])
 
         fc = ttk.Combobox(qb, textvariable=self._sq_field, values=FIELDS,
             state="readonly", width=22)
         fc.grid(row=1, column=0, padx=(0, 10))
         fc.bind("<<ComboboxSelected>>", lambda _: self._live_filter())
 
-        ttk.Combobox(qb, textvariable=self._sq_op, values=OPERATORS,
-            state="readonly", width=14).grid(row=1, column=1, padx=(0, 10))
+        oc = ttk.Combobox(qb, textvariable=self._sq_op, values=OPERATORS,
+            state="readonly", width=18)
+        oc.grid(row=1, column=1, padx=(0, 10))
+        oc.bind("<<ComboboxSelected>>", lambda _: self._live_filter())
 
         self._sq_val_e = tk.Entry(qb, bg=C["inp"], fg=C["text"],
             insertbackground=C["accent"], font=F.r(11),
@@ -776,8 +838,10 @@ class DocuTreeGUI:
     def _do_search(self) -> None:
         if not self.coleccion:
             return
+        if not self._validate_op_field():
+            return
         field = self._sq_field.get()
-        op    = self._sq_op.get()
+        op    = self._get_op()
         raw   = self._sq_val_e.get().strip()
 
         if not raw:
@@ -826,15 +890,45 @@ class DocuTreeGUI:
                 w.bind("<Button-1>",
                     lambda _, i=did: self._switch_view("detail", data=i))
 
+    # ── Helpers de búsqueda ────────────────────────────────────────────────────
+
+    def _get_op(self) -> str:
+        return OPERATOR_MAP.get(self._sq_op.get(), "$eq")
+
+    def _show_search_warning(self, msg: str) -> None:
+        for w in self._sres_frame.winfo_children():
+            w.destroy()
+        f = tk.Frame(self._sres_frame, bg=C["err_bg"],
+            highlightthickness=1, highlightbackground="#f5c6b8",
+            padx=14, pady=10)
+        f.pack(fill=tk.X, pady=8)
+        tk.Label(f, text=f"⚠  {msg}",
+            bg=C["err_bg"], fg=C["err"],
+            font=F.r(10), justify=tk.LEFT, wraplength=480).pack(anchor="w")
+
+    def _validate_op_field(self) -> bool:
+        field = self._sq_field.get()
+        op    = self._get_op()
+        if op in NUMERIC_OPS and field in STRING_FIELDS:
+            self._show_search_warning(
+                f"El operador '{self._sq_op.get()}' solo funciona con campos numéricos "
+                f"(id, edad).\n\nEl campo '{field}' contiene texto. "
+                f"Usa  'Igual a (=)'  o  'Diferente (≠)'  para campos de texto.")
+            return False
+        return True
+
     # ── Filtro en vivo ─────────────────────────────────────────────────────────
 
     def _live_filter(self) -> None:
         raw   = self._sq_val_e.get().strip()
         field = self._sq_field.get()
-        op    = self._sq_op.get()
+        op    = self._get_op()
 
         if not raw:
             self._render_search_rows(self._docs())
+            return
+
+        if not self._validate_op_field():
             return
 
         if op == "$eq":
@@ -858,7 +952,7 @@ class DocuTreeGUI:
         if not self.coleccion or not raw:
             return self._docs()
         field = self._sq_field.get()
-        op    = self._sq_op.get()
+        op    = self._get_op()
         try:
             val: object = int(raw)
         except ValueError:
